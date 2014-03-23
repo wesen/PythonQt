@@ -24,3 +24,5 @@ SOURCES += \
         shellimplgenerator.cpp \
         shellheadergenerator.cpp \
         setupgenerator.cpp
+
+QMAKE_CXXFLAGS += -Wno-unused-parameter -Wno-sometimes-uninitialized

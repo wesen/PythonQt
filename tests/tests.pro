@@ -17,3 +17,5 @@ HEADERS +=                    \
 SOURCES +=                    \
   PythonQtTestMain.cpp        \
   PythonQtTests.cpp
+
+QMAKE_CXXFLAGS += -Wno-unused-parameter -Wno-sometimes-uninitialized
