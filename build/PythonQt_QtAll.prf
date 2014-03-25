@@ -9,5 +9,7 @@ CONFIG(debug, debug|release) {
   DEBUG_EXT = 
 }
 
-win32::LIBS += $$PWD/../lib/PythonQt_QtAll$${DEBUG_EXT}.lib
+win32 {
+LIBS += -L$$PWD/../lib -lPythonQt_QtAll$${DEBUG_EXT}
+}
 unix::LIBS += -L$$PWD/../lib -lPythonQt_QtAll$${DEBUG_EXT}
