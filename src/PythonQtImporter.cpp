@@ -42,6 +42,9 @@
 // modified to do all the loading of Python files via an external file interface.
 // In contrast to zipimport.c, this module also writes *.pyc files
 // automatically if it has write access/is not inside of a zip file.
+//
+// Streamlined serialization of code to avoid compiler mishaps on Windows
+// Manuel Odendahl - <manuel@formlabs.com> - 2014-05
 //----------------------------------------------------------------------------------
 
 #include "PythonQtImporter.h"
