@@ -342,39 +342,39 @@ PythonQtImporter_get_source(PyObject * /*obj*/, PyObject * /*args*/)
 }
 
 PyDoc_STRVAR(doc_find_module,
-"find_module(fullname, path=None) -> self or None.\n\
-\n\
-Search for a module specified by 'fullname'. 'fullname' must be the\n\
-fully qualified (dotted) module name. It returns the PythonQtImporter\n\
-instance itself if the module was found, or None if it wasn't.\n\
-The optional 'path' argument is ignored -- it's there for compatibility\n\
-with the importer protocol.");
+"find_module(fullname, path=None) -> self or None.\n"
+"\n"
+"Search for a module specified by 'fullname'. 'fullname' must be the\n"
+"fully qualified (dotted) module name. It returns the PythonQtImporter\n"
+"instance itself if the module was found, or None if it wasn't.\n"
+"The optional 'path' argument is ignored -- it's there for compatibility\n"
+"with the importer protocol.");
 
 PyDoc_STRVAR(doc_load_module,
-"load_module(fullname) -> module.\n\
-\n\
-Load the module specified by 'fullname'. 'fullname' must be the\n\
-fully qualified (dotted) module name. It returns the imported\n\
-module, or raises PythonQtImportError if it wasn't found.");
+"load_module(fullname) -> module.\n"
+"\n"
+"Load the module specified by 'fullname'. 'fullname' must be the\n"
+"fully qualified (dotted) module name. It returns the imported\n"
+"module, or raises PythonQtImportError if it wasn't found.");
 
 PyDoc_STRVAR(doc_get_data,
-"get_data(pathname) -> string with file data.\n\
-\n\
-Return the data associated with 'pathname'. Raise IOError if\n\
-the file wasn't found.");
+"get_data(pathname) -> string with file data.\n"
+"\n"
+"Return the data associated with 'pathname'. Raise IOError if\n"
+"the file wasn't found.");
 
 PyDoc_STRVAR(doc_get_code,
-"get_code(fullname) -> code object.\n\
-\n\
-Return the code object for the specified module. Raise PythonQtImportError\n\
-is the module couldn't be found.");
+"get_code(fullname) -> code object.\n"
+"\n"
+"Return the code object for the specified module. Raise PythonQtImportError\n"
+"is the module couldn't be found.");
 
 PyDoc_STRVAR(doc_get_source,
-"get_source(fullname) -> source string.\n\
-\n\
-Return the source code for the specified module. Raise PythonQtImportError\n\
-is the module couldn't be found, return None if the archive does\n\
-contain the module, but has no source for it.");
+"get_source(fullname) -> source string.\n"
+"\n"
+"Return the source code for the specified module. Raise PythonQtImportError\n"
+"is the module couldn't be found, return None if the archive does\n"
+"contain the module, but has no source for it.");
 
 PyMethodDef PythonQtImporter_methods[] = {
   {"find_module", PythonQtImporter_find_module, METH_VARARGS,
@@ -392,10 +392,10 @@ PyMethodDef PythonQtImporter_methods[] = {
 
 
 PyDoc_STRVAR(PythonQtImporter_doc,
-"PythonQtImporter(path) -> PythonQtImporter object\n\
-\n\
-Create a new PythonQtImporter instance. 'path' must be a valid path on disk/or inside of a zip file known to MeVisLab\n\
-. Every path is accepted.");
+"PythonQtImporter(path) -> PythonQtImporter object\n"
+"\n"
+"Create a new PythonQtImporter instance. 'path' must be a valid path on disk/or inside of a zip file known to MeVisLab\n"
+". Every path is accepted.");
 
 #define DEFERRED_ADDRESS(ADDR) 0
 
@@ -461,6 +461,14 @@ PythonQtImport::getLong(unsigned char *buf)
   return x;
 }
 
+void toLong(long l, unsigned char *buf)
+{
+  buf[0] = l & 0xFF;
+  buf[1] = (l >> 8) & 0xFF;
+  buf[2] = (l >> 16) & 0xFF;
+  buf[3] = (l >> 24) & 0xFF;
+}
+
 FILE *
 open_exclusive(const QString& filename)
 {
@@ -507,22 +515,41 @@ void PythonQtImport::writeCompiledModule(PyCodeObject *co, const QString& filena
       "# can't create %s\n", filename.toLatin1().constData());
     return;
   }
+
+  unsigned char buf[4];
+
+  /* magic number */
+  long magicNumber = PyImport_GetMagicNumber();
+  toLong(magicNumber, buf);
+  fwrite(buf, 4, 1, fp);
+
+  /* mtime */
+  toLong(mtime, buf);
+  fwrite(buf, 4, 1, fp);
+
+
 #if PY_VERSION_HEX < 0x02040000
-  PyMarshal_WriteLongToFile(PyImport_GetMagicNumber(), fp);
+  PyObject *res = PyMarshal_WriteObjectToString((PyObject *) co);
 #else
-  PyMarshal_WriteLongToFile(PyImport_GetMagicNumber(), fp, Py_MARSHAL_VERSION);
+  PyObject *res = PyMarshal_WriteObjectToString((PyObject *) co, Py_MARSHAL_VERSION);
 #endif
-  /* First write a 0 for mtime */
-#if PY_VERSION_HEX < 0x02040000
-  PyMarshal_WriteLongToFile(0L, fp);
-#else
-  PyMarshal_WriteLongToFile(0L, fp, Py_MARSHAL_VERSION);
-#endif
-#if PY_VERSION_HEX < 0x02040000
-  PyMarshal_WriteObjectToFile((PyObject *)co, fp);
-#else
-  PyMarshal_WriteObjectToFile((PyObject *)co, fp, Py_MARSHAL_VERSION);
-#endif
+
+  if (res == NULL)
+  {
+    if (Py_VerboseFlag)
+      PySys_WriteStderr("# can't serialize code to %s\n", filename.toLatin1().constData());
+    /* Don't keep partial file */
+    fclose(fp);
+    QFile::remove(filename);
+    return;
+  }
+
+  void *str = (void*) PyString_AS_STRING(res);
+  Py_ssize_t len = PyString_GET_SIZE(res);
+  fwrite(str, len, 1, fp);
+  Py_DECREF(res);
+  res = NULL;
+
   if (ferror(fp)) {
     if (Py_VerboseFlag)
       PySys_WriteStderr("# can't write %s\n", filename.toLatin1().constData());
@@ -531,13 +558,7 @@ void PythonQtImport::writeCompiledModule(PyCodeObject *co, const QString& filena
     QFile::remove(filename);
     return;
   }
-  /* Now write the true mtime */
-  fseek(fp, 4L, 0);
-#if PY_VERSION_HEX < 0x02040000
-  PyMarshal_WriteLongToFile(mtime, fp);
-#else
-  PyMarshal_WriteLongToFile(mtime, fp, Py_MARSHAL_VERSION);
-#endif
+
   fflush(fp);
   fclose(fp);
   if (Py_VerboseFlag)
