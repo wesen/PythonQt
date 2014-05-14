@@ -1,0 +1,11 @@
+*.o
+*.app
+*.dylib
+moc_*
+qrc_*
+Makefile
+lib
+generator/Makefile.Debug
+generator/Makefile.Release
+generator/pythonqt_generator
+PythonQt.pro.user
